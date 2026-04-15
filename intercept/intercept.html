@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Don't Procrastinate</title>
+    <link rel="stylesheet" href="intercept.css" />
+  </head>
+  <body>
+    <div class="container">
+      <img class="icon" src="../icons/icon.svg" alt="" />
+      <h1 id="heading">Is this important?</h1>
+      <p class="visit-count" id="visit-count"></p>
+      <p class="usage-info" id="usage-info"></p>
+      <div class="intent-section" id="intent-section" style="display: none">
+        <label
+          class="intent-label"
+          for="intent-input"
+          id="intent-prompt"
+        ></label>
+        <input
+          type="text"
+          id="intent-input"
+          autocomplete="off"
+          placeholder="Type your answer..."
+        />
+      </div>
+      <p class="activity-suggestion" id="activity-suggestion"></p>
+      <button id="no-btn">Go back</button>
+      <button id="yes-btn" disabled>Yes, I want to waste my time</button>
+      <p class="quote" id="quote"></p>
+      <p class="quote-author" id="quote-author"></p>
+    </div>
+    <script src="intercept.js"></script>
+  </body>
+</html>

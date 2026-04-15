@@ -1,0 +1,57 @@
+{
+  "manifest_version": 3,
+  "name": "Don't Procrastinate",
+  "version": "1.0.0",
+  "description": "Adds a confirmation step before opening distracting websites.",
+
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "{7474b3b1-2d7c-4d74-b8a4-22600c3daf78}",
+      "strict_min_version": "109.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  },
+
+  "permissions": [
+    "storage",
+    "tabs",
+    "webRequest",
+    "webRequestBlocking",
+    "webNavigation"
+  ],
+
+  "host_permissions": ["<all_urls>"],
+
+  "background": {
+    "scripts": ["background.js"]
+  },
+
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon.svg",
+      "32": "icons/icon.svg",
+      "48": "icons/icon.svg"
+    },
+    "default_title": "Don't Procrastinate"
+  },
+
+  "icons": {
+    "48": "icons/icon.svg",
+    "96": "icons/icon.svg"
+  },
+
+  "options_ui": {
+    "page": "settings/settings.html",
+    "open_in_tab": true
+  },
+
+  "web_accessible_resources": [
+    {
+      "resources": ["intercept/intercept.html"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

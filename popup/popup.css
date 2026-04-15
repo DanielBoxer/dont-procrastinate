@@ -1,0 +1,78 @@
+@import url("../shared.css");
+
+body {
+  width: 320px;
+  font-family: var(--font-stack);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.popup {
+  padding: 1rem;
+}
+
+.popup-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.popup-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.popup-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-heading);
+}
+
+.site-status {
+  margin-bottom: 0.75rem;
+}
+
+.status-site {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-heading);
+  margin-bottom: 0.15rem;
+}
+
+.status-label {
+  font-size: 0.8rem;
+}
+
+.status-label.not-blocked {
+  color: var(--text-muted);
+}
+
+.status-label.blocked {
+  color: var(--danger);
+}
+
+.status-label.tracked {
+  color: var(--accent);
+}
+
+#settings-btn {
+  display: block;
+  width: 100%;
+  padding: 0.45rem 0.8rem;
+  background: var(--accent);
+  color: var(--bg-primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+#settings-btn:hover {
+  background: var(--accent-hover);
+}
