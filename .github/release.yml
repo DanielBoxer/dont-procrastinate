@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths: [manifest.json]
+
+env:
+  PACKAGE_NAME: "dont-procrastinate"
+  INCLUDED_FILES: "**/*.{svg,js,css,json,html}"
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Get version from manifest
+        id: get_version
+        run: |
+          VERSION=$(jq -r '.version' manifest.json)
+          echo "version=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check if release already exists
+        run: |
+          if gh release view ${{ steps.get_version.outputs.version }} &>/dev/null; then
+            echo "Release ${{ steps.get_version.outputs.version }} already exists"
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Zip files
+        run: |
+          shopt -s globstar
+          zip -r ${{ env.PACKAGE_NAME }}.zip ${{ env.INCLUDED_FILES }}
+
+      - name: Create release
+        run: gh release create ${{ steps.get_version.outputs.version }} ${{ env.PACKAGE_NAME }}.zip --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
