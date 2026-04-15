@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Don't Procrastinate",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Adds a confirmation step before opening distracting websites.",
 
   "browser_specific_settings": {
