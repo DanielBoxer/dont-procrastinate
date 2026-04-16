@@ -2,6 +2,8 @@
 
 A Firefox extension that adds a confirmation step before opening distracting websites.
 
+![Intercept Page](img/intercept.png)
+
 ## Features
 
 - **Site Blocking**: Create a blocklist of distracting sites with support for path-based patterns (e.g. `youtube.com/shorts/`)
