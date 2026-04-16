@@ -1,6 +1,20 @@
 const siteStatus = document.getElementById("site-status");
 const settingsBtn = document.getElementById("settings-btn");
 
+function setStatusSpans(hostname, labelClass, labelText) {
+  siteStatus.replaceChildren();
+  if (hostname) {
+    const siteSpan = document.createElement("span");
+    siteSpan.className = "status-site";
+    siteSpan.textContent = hostname;
+    siteStatus.appendChild(siteSpan);
+  }
+  const labelSpan = document.createElement("span");
+  labelSpan.className = `status-label ${labelClass}`;
+  labelSpan.textContent = labelText;
+  siteStatus.appendChild(labelSpan);
+}
+
 async function checkCurrentTab() {
   const tabs = await browser.tabs.query({ active: true, currentWindow: true });
   const tab = tabs[0];
@@ -11,7 +25,7 @@ async function checkCurrentTab() {
 
   // Skip internal pages (about:, moz-extension://, etc.)
   if (!tab.url.startsWith("http://") && !tab.url.startsWith("https://")) {
-    siteStatus.innerHTML = `<span class="status-label not-blocked">Not on a website</span>`;
+    setStatusSpans(null, "not-blocked", "Not on a website");
     return;
   }
 
@@ -46,7 +60,7 @@ async function checkCurrentTab() {
   }
 
   if (!matched) {
-    siteStatus.innerHTML = `<span class="status-site">${hostname}</span><span class="status-label not-blocked">Not blocked</span>`;
+    setStatusSpans(hostname, "not-blocked", "Not blocked");
     return;
   }
 
@@ -57,7 +71,7 @@ async function checkCurrentTab() {
   const s = result.settings;
 
   if (s.mode === "block") {
-    siteStatus.innerHTML = `<span class="status-site">${hostname}</span><span class="status-label blocked">Completely blocked</span>`;
+    setStatusSpans(hostname, "blocked", "Completely blocked");
     return;
   }
 
@@ -75,9 +89,9 @@ async function checkCurrentTab() {
   }
 
   if (parts.length > 0) {
-    siteStatus.innerHTML = `<span class="status-site">${hostname}</span><span class="status-label tracked">${parts.join(" · ")}</span>`;
+    setStatusSpans(hostname, "tracked", parts.join(" · "));
   } else {
-    siteStatus.innerHTML = `<span class="status-site">${hostname}</span><span class="status-label tracked">Blocked (no limits set)</span>`;
+    setStatusSpans(hostname, "tracked", "Blocked (no limits set)");
   }
 }
 

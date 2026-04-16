@@ -1,13 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Don't Procrastinate",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Adds a confirmation step before opening distracting websites.",
 
   "browser_specific_settings": {
     "gecko": {
       "id": "{7474b3b1-2d7c-4d74-b8a4-22600c3daf78}",
-      "strict_min_version": "109.0",
+      "strict_min_version": "142.0",
       "data_collection_permissions": {
         "required": ["none"]
       }

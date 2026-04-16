@@ -65,6 +65,10 @@ const QUOTES = [
     text: "Until we can manage time, we can manage nothing else.",
     author: "Peter Drucker",
   },
+  {
+    text: "We have two lives, and the second begins when we realize we only have one.",
+    author: "Confucius",
+  },
 ];
 
 function getSiteName(url) {
