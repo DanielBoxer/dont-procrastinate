@@ -75,9 +75,10 @@ async function getBlockedPatterns() {
 }
 
 function urlMatchesPattern(url, pattern) {
-  // Convert match pattern to regex
+  // Convert match pattern to regex, treating *. (subdomain wildcard) as optional
   const escaped = pattern
     .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    .replace(/\\\*\\\./g, "(?:.*\\.)?")
     .replace(/\\\*/g, ".*");
   const regex = new RegExp(`^${escaped}$`, "i");
   return regex.test(url);
