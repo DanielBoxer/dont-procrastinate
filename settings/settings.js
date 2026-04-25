@@ -297,6 +297,91 @@ newSiteInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") addSite();
 });
 
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function exportBlocklistJSON() {
+  const { blockedSites } = await browser.storage.local.get({
+    blockedSites: [],
+  });
+  const allSettings = await getSiteSettings();
+
+  // Only include settings for sites that are in the blocklist
+  const relevantSettings = {};
+  for (const pattern of blockedSites) {
+    if (allSettings[pattern]) relevantSettings[pattern] = allSettings[pattern];
+  }
+
+  const data = { blockedSites, siteSettings: relevantSettings };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: "application/json",
+  });
+  downloadBlob(blob, "blocklist.json");
+}
+
+async function importBlocklist(file) {
+  const text = await file.text();
+  let newSites = [];
+  let newSettings = {};
+
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    alert("Invalid JSON file.");
+    return;
+  }
+  if (Array.isArray(data.blockedSites)) {
+    // Only accept plain strings of reasonable length (no code injection via storage)
+    newSites = data.blockedSites.filter(
+      (p) => typeof p === "string" && p.length > 0 && p.length < 500,
+    );
+  }
+  if (
+    data.siteSettings &&
+    typeof data.siteSettings === "object" &&
+    !Array.isArray(data.siteSettings)
+  ) {
+    newSettings = data.siteSettings;
+  }
+
+  const { blockedSites } = await browser.storage.local.get({
+    blockedSites: [],
+  });
+  const allSettings = await getSiteSettings();
+
+  // Merge: add sites not already present, keep existing settings
+  const merged = [...blockedSites];
+  for (const site of newSites) {
+    if (!merged.includes(site)) merged.push(site);
+  }
+  const mergedSettings = { ...newSettings, ...allSettings };
+
+  await browser.storage.local.set({
+    blockedSites: merged,
+    siteSettings: mergedSettings,
+  });
+  loadSites();
+}
+
+document
+  .getElementById("export-json-btn")
+  .addEventListener("click", exportBlocklistJSON);
+document.getElementById("import-btn").addEventListener("click", () => {
+  document.getElementById("import-file").click();
+});
+document.getElementById("import-file").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (file) importBlocklist(file);
+  e.target.value = "";
+});
+
 waitTimeInput.addEventListener("change", async () => {
   const value = Math.max(
     1,
