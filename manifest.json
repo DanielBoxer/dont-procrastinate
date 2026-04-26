@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Don't Procrastinate",
-  "version": "0.0.4",
+  "version": "0.1.0",
   "description": "Adds a confirmation step before opening distracting websites.",
 
   "browser_specific_settings": {
@@ -19,13 +19,14 @@
     "tabs",
     "webRequest",
     "webRequestBlocking",
-    "webNavigation"
+    "webNavigation",
+    "notifications"
   ],
 
   "host_permissions": ["<all_urls>"],
 
   "background": {
-    "scripts": ["background.js"]
+    "scripts": ["quotes.js", "background.js"]
   },
 
   "action": {

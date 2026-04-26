@@ -38,6 +38,23 @@
           <input type="checkbox" id="require-intent" checked />
           <span>Require intent (type why you're going)</span>
         </label>
+        <div class="wait-row">
+          <label class="option-toggle">
+            <input type="checkbox" id="notify-interval-check" />
+            <span>Remind me on blocked sites</span>
+          </label>
+          <input
+            type="number"
+            id="notify-interval"
+            min="1"
+            max="999"
+            value="5"
+            hidden
+          />
+          <span class="unit" id="notify-interval-unit" hidden
+            >min interval</span
+          >
+        </div>
       </section>
 
       <section class="section">

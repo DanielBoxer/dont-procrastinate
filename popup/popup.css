@@ -59,6 +59,12 @@ body {
   color: var(--accent);
 }
 
+.notify-countdown {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
 #settings-btn {
   display: block;
   width: 100%;

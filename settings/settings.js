@@ -4,6 +4,9 @@ const addBtn = document.getElementById("add-btn");
 const waitTimeInput = document.getElementById("wait-time");
 const rotatingHeadlinesCheck = document.getElementById("rotating-headlines");
 const requireIntentCheck = document.getElementById("require-intent");
+const notifyIntervalCheck = document.getElementById("notify-interval-check");
+const notifyIntervalInput = document.getElementById("notify-interval");
+const notifyIntervalUnit = document.getElementById("notify-interval-unit");
 const activityList = document.getElementById("activity-list");
 const newActivityInput = document.getElementById("new-activity");
 const addActivityBtn = document.getElementById("add-activity-btn");
@@ -415,6 +418,36 @@ requireIntentCheck.addEventListener("change", () => {
   browser.storage.local.set({ requireIntent: requireIntentCheck.checked });
 });
 
+async function loadNotifyInterval() {
+  const { notifyIntervalMinutes } = await browser.storage.local.get({
+    notifyIntervalMinutes: 0,
+  });
+  const enabled = notifyIntervalMinutes > 0;
+  notifyIntervalCheck.checked = enabled;
+  notifyIntervalInput.value = enabled ? notifyIntervalMinutes : 5;
+  notifyIntervalInput.hidden = !enabled;
+  notifyIntervalUnit.hidden = !enabled;
+}
+
+notifyIntervalCheck.addEventListener("change", () => {
+  const enabled = notifyIntervalCheck.checked;
+  notifyIntervalInput.hidden = !enabled;
+  notifyIntervalUnit.hidden = !enabled;
+  const val = enabled
+    ? Math.max(1, Math.min(999, parseInt(notifyIntervalInput.value, 10) || 5))
+    : 0;
+  browser.storage.local.set({ notifyIntervalMinutes: val });
+});
+
+notifyIntervalInput.addEventListener("change", () => {
+  const val = Math.max(
+    1,
+    Math.min(999, parseInt(notifyIntervalInput.value, 10) || 1),
+  );
+  notifyIntervalInput.value = val;
+  browser.storage.local.set({ notifyIntervalMinutes: val });
+});
+
 async function loadActivities() {
   const { activities } = await browser.storage.local.get({ activities: [] });
   activityList.innerHTML = "";
@@ -464,4 +497,5 @@ newActivityInput.addEventListener("keydown", (e) => {
 loadSites();
 loadWaitTime();
 loadInterceptSettings();
+loadNotifyInterval();
 loadActivities();

@@ -4,6 +4,12 @@ const approvedNavigations = new Set();
 // Tracks tabs currently on blocked sites: tabId -> { pattern, startTime }
 const activeBlockedTabs = new Map();
 
+// Tracks periodic notification timers for active blocked tabs: tabId -> intervalId
+const notifyTimers = new Map();
+
+// Tracks notify timer metadata for popup display: tabId -> { intervalMinutes, lastFireMs }
+const notifyTimerMeta = new Map();
+
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -48,10 +54,65 @@ async function recordOpen(pattern) {
   await saveDailyUsage(usage);
 }
 
+function patternToDisplayName(pattern) {
+  return pattern.replace(/^\*:\/\/\*\./, "").replace(/\/\?\*$|\/*\*$/, "");
+}
+
+async function startNotifyTimer(tabId, pattern) {
+  // Clear any existing timer for this tab before starting a new one
+  if (notifyTimers.has(tabId)) {
+    clearInterval(notifyTimers.get(tabId));
+    notifyTimers.delete(tabId);
+  }
+
+  const { notifyIntervalMinutes } = await browser.storage.local.get({
+    notifyIntervalMinutes: 0,
+  });
+  if (notifyIntervalMinutes <= 0) return;
+
+  const ms = notifyIntervalMinutes * 60 * 1000;
+  const meta = {
+    intervalMinutes: notifyIntervalMinutes,
+    lastFireMs: Date.now(),
+  };
+  notifyTimerMeta.set(tabId, meta);
+  const timerId = setInterval(async () => {
+    const entry = activeBlockedTabs.get(tabId);
+    if (!entry) {
+      clearInterval(timerId);
+      notifyTimers.delete(tabId);
+      notifyTimerMeta.delete(tabId);
+      return;
+    }
+    meta.lastFireMs = Date.now();
+    const heading = HEADINGS[Math.floor(Math.random() * HEADINGS.length)];
+    const quote = QUOTES[Math.floor(Math.random() * QUOTES.length)];
+    const usage = await getDailyUsage();
+    const site = getSiteUsage(usage, entry.pattern);
+    const elapsed = (Date.now() - entry.startTime) / 60000;
+    const totalMin = Math.round(site.minutesUsed + elapsed);
+    const display = patternToDisplayName(entry.pattern);
+    browser.notifications.create(`blocked-reminder-${tabId}`, {
+      type: "basic",
+      iconUrl: browser.runtime.getURL("icons/icon-sad.png"),
+      title: heading,
+      message: `"${quote.text}"\n${display}: ${totalMin} min today`,
+    });
+  }, ms);
+  notifyTimers.set(tabId, timerId);
+}
+
 async function flushTabTime(tabId) {
   const entry = activeBlockedTabs.get(tabId);
   if (entry == null) return;
   activeBlockedTabs.delete(tabId);
+
+  // Clear any notification timer for this tab
+  if (notifyTimers.has(tabId)) {
+    clearInterval(notifyTimers.get(tabId));
+    notifyTimers.delete(tabId);
+    notifyTimerMeta.delete(tabId);
+  }
 
   const elapsed = (Date.now() - entry.startTime) / 60000;
   const usage = await getDailyUsage();
@@ -113,6 +174,7 @@ browser.runtime.onMessage.addListener((message, sender) => {
         if (pattern) {
           recordOpen(pattern);
           activeBlockedTabs.set(tabId, { pattern, startTime: Date.now() });
+          startNotifyTimer(tabId, pattern);
         }
       });
       browser.tabs.update(tabId, { url: message.url });
@@ -133,6 +195,11 @@ browser.runtime.onMessage.addListener((message, sender) => {
         settings: { ...DEFAULT_SITE_SETTINGS, ...allSettings[pattern] },
       };
     });
+  }
+
+  if (message.type === "get-notify-timer") {
+    const meta = notifyTimerMeta.get(message.tabId);
+    return Promise.resolve(meta ? { ...meta } : null);
   }
 });
 
