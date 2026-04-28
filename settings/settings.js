@@ -63,6 +63,11 @@ async function loadSites() {
   });
   const allSettings = await getSiteSettings();
 
+  // Get live time data (includes in-progress time from active tabs)
+  const liveMinutes = await browser.runtime.sendMessage({
+    type: "get-live-minutes",
+  });
+
   // Group patterns by domain
   const groups = new Map();
   for (const pattern of blockedSites) {
@@ -88,14 +93,15 @@ async function loadSites() {
 
     for (const pattern of patterns) {
       const settings = { ...DEFAULT_SETTINGS, ...allSettings[pattern] };
-      group.appendChild(createSiteCard(pattern, settings));
+      const minutesUsed = liveMinutes?.[pattern] || 0;
+      group.appendChild(createSiteCard(pattern, settings, minutesUsed));
     }
 
     siteList.appendChild(group);
   }
 }
 
-function createSiteCard(pattern, settings) {
+function createSiteCard(pattern, settings, minutesUsed) {
   const card = document.createElement("div");
   card.className = "site-card";
 
@@ -107,6 +113,13 @@ function createSiteCard(pattern, settings) {
   name.textContent = patternToDisplay(pattern);
   name.title = pattern;
   header.appendChild(name);
+
+  if (minutesUsed > 0) {
+    const timeSpan = document.createElement("span");
+    timeSpan.className = "site-time";
+    timeSpan.textContent = `${Math.round(minutesUsed)} min today`;
+    header.appendChild(timeSpan);
+  }
 
   const removeBtn = document.createElement("button");
   removeBtn.className = "remove-btn";

@@ -1,13 +1,16 @@
 // Tracks tabs that have been approved through the interstitial
 const approvedNavigations = new Set();
 
-// Tracks tabs currently on blocked sites: tabId -> { pattern, startTime }
+// Tracks tabs currently on blocked sites: tabId -> pattern
 const activeBlockedTabs = new Map();
 
-// Tracks periodic notification timers for active blocked tabs: tabId -> intervalId
+// Tracks per-domain active state: pattern -> { refCount, startTime }
+const activeDomains = new Map();
+
+// Tracks periodic notification timers for active blocked domains: pattern -> intervalId
 const notifyTimers = new Map();
 
-// Tracks notify timer metadata for popup display: tabId -> { intervalMinutes, lastFireMs }
+// Tracks notify timer metadata for popup display: pattern -> { intervalMinutes, lastFireMs }
 const notifyTimerMeta = new Map();
 
 function todayKey() {
@@ -58,12 +61,9 @@ function patternToDisplayName(pattern) {
   return pattern.replace(/^\*:\/\/\*\./, "").replace(/\/\?\*$|\/*\*$/, "");
 }
 
-async function startNotifyTimer(tabId, pattern) {
-  // Clear any existing timer for this tab before starting a new one
-  if (notifyTimers.has(tabId)) {
-    clearInterval(notifyTimers.get(tabId));
-    notifyTimers.delete(tabId);
-  }
+async function startNotifyTimer(pattern) {
+  // Only start a new timer if one isn't already running for this domain
+  if (notifyTimers.has(pattern)) return;
 
   const { notifyIntervalMinutes } = await browser.storage.local.get({
     notifyIntervalMinutes: 0,
@@ -75,50 +75,60 @@ async function startNotifyTimer(tabId, pattern) {
     intervalMinutes: notifyIntervalMinutes,
     lastFireMs: Date.now(),
   };
-  notifyTimerMeta.set(tabId, meta);
+  notifyTimerMeta.set(pattern, meta);
   const timerId = setInterval(async () => {
-    const entry = activeBlockedTabs.get(tabId);
-    if (!entry) {
+    const domain = activeDomains.get(pattern);
+    if (!domain) {
       clearInterval(timerId);
-      notifyTimers.delete(tabId);
-      notifyTimerMeta.delete(tabId);
+      notifyTimers.delete(pattern);
+      notifyTimerMeta.delete(pattern);
       return;
     }
     meta.lastFireMs = Date.now();
     const heading = HEADINGS[Math.floor(Math.random() * HEADINGS.length)];
-    const quote = QUOTES[Math.floor(Math.random() * QUOTES.length)];
     const usage = await getDailyUsage();
-    const site = getSiteUsage(usage, entry.pattern);
-    const elapsed = (Date.now() - entry.startTime) / 60000;
+    const site = getSiteUsage(usage, pattern);
+    const elapsed = (Date.now() - domain.startTime) / 60000;
     const totalMin = Math.round(site.minutesUsed + elapsed);
-    const display = patternToDisplayName(entry.pattern);
-    browser.notifications.create(`blocked-reminder-${tabId}`, {
+    const display = patternToDisplayName(pattern);
+    browser.notifications.create(`blocked-reminder-${pattern}`, {
       type: "basic",
       iconUrl: browser.runtime.getURL("icons/icon-sad.png"),
       title: heading,
-      message: `"${quote.text}"\n${display}: ${totalMin} min today`,
+      message: `${display}: ${totalMin} min today`,
     });
   }, ms);
-  notifyTimers.set(tabId, timerId);
+  notifyTimers.set(pattern, timerId);
 }
 
 async function flushTabTime(tabId) {
-  const entry = activeBlockedTabs.get(tabId);
-  if (entry == null) return;
+  const pattern = activeBlockedTabs.get(tabId);
+  if (pattern == null) return;
   activeBlockedTabs.delete(tabId);
 
-  // Clear any notification timer for this tab
-  if (notifyTimers.has(tabId)) {
-    clearInterval(notifyTimers.get(tabId));
-    notifyTimers.delete(tabId);
-    notifyTimerMeta.delete(tabId);
+  const domain = activeDomains.get(pattern);
+  if (!domain) return;
+
+  domain.refCount--;
+  if (domain.refCount > 0) {
+    // Other tabs still open for this domain, don't flush yet
+    return;
   }
 
-  const elapsed = (Date.now() - entry.startTime) / 60000;
+  // Last tab for this domain closed, flush accumulated time and stop timer
+  activeDomains.delete(pattern);
+
+  if (notifyTimers.has(pattern)) {
+    clearInterval(notifyTimers.get(pattern));
+    notifyTimers.delete(pattern);
+    notifyTimerMeta.delete(pattern);
+  }
+
+  const elapsed = (Date.now() - domain.startTime) / 60000;
   const usage = await getDailyUsage();
-  const site = getSiteUsage(usage, entry.pattern);
+  const site = getSiteUsage(usage, pattern);
   site.minutesUsed = Math.round((site.minutesUsed + elapsed) * 100) / 100;
-  usage.sites[entry.pattern] = site;
+  usage.sites[pattern] = site;
   await saveDailyUsage(usage);
 }
 
@@ -170,11 +180,18 @@ browser.runtime.onMessage.addListener((message, sender) => {
     const tabId = sender.tab?.id;
     if (tabId != null) {
       approvedNavigations.add(tabId);
-      getMatchingPattern(message.url).then((pattern) => {
+      getMatchingPattern(message.url).then(async (pattern) => {
         if (pattern) {
+          // Flush any prior tracking for this tab (e.g. navigating between blocked sites)
+          await flushTabTime(tabId);
           recordOpen(pattern);
-          activeBlockedTabs.set(tabId, { pattern, startTime: Date.now() });
-          startNotifyTimer(tabId, pattern);
+          activeBlockedTabs.set(tabId, pattern);
+          if (activeDomains.has(pattern)) {
+            activeDomains.get(pattern).refCount++;
+          } else {
+            activeDomains.set(pattern, { refCount: 1, startTime: Date.now() });
+            startNotifyTimer(pattern);
+          }
         }
       });
       browser.tabs.update(tabId, { url: message.url });
@@ -190,16 +207,37 @@ browser.runtime.onMessage.addListener((message, sender) => {
         };
       const usage = await getDailyUsage();
       const allSettings = await getSiteSettings();
+      const site = getSiteUsage(usage, pattern);
+      // Include any in-progress (unflushed) time from active domain tracking
+      const domain = activeDomains.get(pattern);
+      const liveMinutes = domain ? (Date.now() - domain.startTime) / 60000 : 0;
       return {
-        usage: getSiteUsage(usage, pattern),
+        usage: { ...site, minutesUsed: site.minutesUsed + liveMinutes },
         settings: { ...DEFAULT_SITE_SETTINGS, ...allSettings[pattern] },
       };
     });
   }
 
   if (message.type === "get-notify-timer") {
-    const meta = notifyTimerMeta.get(message.tabId);
+    // Look up the domain-level timer via the tab's pattern
+    const pattern = activeBlockedTabs.get(message.tabId);
+    const meta = pattern ? notifyTimerMeta.get(pattern) : null;
     return Promise.resolve(meta ? { ...meta } : null);
+  }
+
+  if (message.type === "get-live-minutes") {
+    return getDailyUsage().then((usage) => {
+      const result = {};
+      for (const [pattern, site] of Object.entries(usage.sites)) {
+        result[pattern] = site.minutesUsed;
+      }
+      // Add in-progress time for any currently active domains
+      for (const [pattern, domain] of activeDomains) {
+        result[pattern] =
+          (result[pattern] || 0) + (Date.now() - domain.startTime) / 60000;
+      }
+      return result;
+    });
   }
 });
 

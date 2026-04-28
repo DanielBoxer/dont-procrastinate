@@ -1,4 +1,5 @@
 const siteStatus = document.getElementById("site-status");
+const siteTime = document.getElementById("site-time");
 const notifyCountdown = document.getElementById("notify-countdown");
 const settingsBtn = document.getElementById("settings-btn");
 
@@ -59,6 +60,7 @@ async function checkCurrentTab() {
   // Skip internal pages (about:, moz-extension://, etc.)
   if (!tab.url.startsWith("http://") && !tab.url.startsWith("https://")) {
     setStatusSpans(null, "not-blocked", "Not on a website");
+    siteTime.hidden = true;
     return;
   }
 
@@ -94,6 +96,7 @@ async function checkCurrentTab() {
 
   if (!matched) {
     setStatusSpans(hostname, "not-blocked", "Not blocked");
+    siteTime.hidden = true;
     return;
   }
 
@@ -105,6 +108,7 @@ async function checkCurrentTab() {
 
   if (s.mode === "block") {
     setStatusSpans(hostname, "blocked", "Completely blocked");
+    siteTime.hidden = true;
     return;
   }
 
@@ -126,7 +130,14 @@ async function checkCurrentTab() {
   } else {
     setStatusSpans(hostname, "tracked", "Blocked (no limits set)");
   }
-
+  // Show time spent today on this site
+  const mins = Math.round(result.usage.minutesUsed);
+  if (mins > 0) {
+    siteTime.textContent = `${mins} min today`;
+    siteTime.hidden = false;
+  } else {
+    siteTime.hidden = true;
+  }
   // Show countdown to next notification if a timer is active for this tab
   browser.runtime
     .sendMessage({ type: "get-notify-timer", tabId: tab.id })

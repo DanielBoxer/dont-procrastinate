@@ -59,6 +59,12 @@ body {
   color: var(--accent);
 }
 
+.site-time {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
 .notify-countdown {
   font-size: 0.75rem;
   color: var(--text-muted);

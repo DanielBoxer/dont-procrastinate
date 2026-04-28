@@ -185,6 +185,13 @@ ul {
   font-size: 0.9rem;
 }
 
+.site-header .site-time {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  margin: 0 0.5rem;
+}
+
 .site-controls {
   display: flex;
   align-items: center;
