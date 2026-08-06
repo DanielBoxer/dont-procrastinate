@@ -1,5 +1,6 @@
 const params = new URLSearchParams(window.location.search);
 const targetUrl = params.get("url");
+const blockedPattern = params.get("pattern");
 
 const heading = document.getElementById("heading");
 const visitCount = document.getElementById("visit-count");
@@ -24,12 +25,42 @@ function getSiteName(url) {
   }
 }
 
+// The countdown needs both an intent and the limit check, which resolve independently
+let intentSatisfied = false;
+let allowedSettings = null;
+
+function maybeStartCountdown() {
+  if (intentSatisfied && allowedSettings) {
+    startCountdown(allowedSettings.waitSeconds);
+  }
+}
+
+function showIntentPrompt() {
+  intentPrompt.textContent = `What specifically will you do on ${getSiteName(targetUrl)}?`;
+  intentSection.style.display = "";
+  intentInput.focus();
+
+  intentInput.addEventListener("input", function onInput() {
+    if (intentInput.value.trim().length >= 5) {
+      intentInput.removeEventListener("input", onInput);
+      intentSatisfied = true;
+      maybeStartCountdown();
+    }
+  });
+}
+
 async function init() {
-  const { rotatingHeadlines, requireIntent, activities } =
+  const limits = browser.runtime.sendMessage({
+    type: "check-limits",
+    url: targetUrl,
+  });
+
+  const { rotatingHeadlines, requireIntent, activities, siteSettings } =
     await browser.storage.local.get({
       rotatingHeadlines: true,
       requireIntent: true,
       activities: [],
+      siteSettings: {},
     });
 
   if (rotatingHeadlines) {
@@ -46,15 +77,21 @@ async function init() {
     activitySuggestion.textContent = `Instead, you could: ${pick}`;
   }
 
-  const { usage, settings } = await browser.runtime.sendMessage({
-    type: "check-limits",
-    url: targetUrl,
-  });
+  if (siteSettings[blockedPattern]?.mode !== "block") {
+    if (requireIntent) {
+      showIntentPrompt();
+    } else {
+      intentSatisfied = true;
+    }
+  }
+
+  const { usage, settings } = await limits;
 
   // Completely blocked mode
   if (settings.mode === "block") {
     heading.textContent = "This site is blocked";
     yesBtn.style.display = "none";
+    intentSection.style.display = "none";
     return;
   }
 
@@ -82,23 +119,12 @@ async function init() {
   if (opensExceeded || minutesExceeded) {
     heading.textContent = "Daily limit reached";
     yesBtn.style.display = "none";
+    intentSection.style.display = "none";
     return;
   }
 
-  if (requireIntent) {
-    intentPrompt.textContent = `What specifically will you do on ${getSiteName(targetUrl)}?`;
-    intentSection.style.display = "";
-    intentInput.focus();
-
-    intentInput.addEventListener("input", function onInput() {
-      if (intentInput.value.trim().length >= 5) {
-        intentInput.removeEventListener("input", onInput);
-        startCountdown(settings.waitSeconds);
-      }
-    });
-  } else {
-    startCountdown(settings.waitSeconds);
-  }
+  allowedSettings = settings;
+  maybeStartCountdown();
 }
 
 function startCountdown(waitSeconds) {

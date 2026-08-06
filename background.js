@@ -297,7 +297,10 @@ browser.webRequest.onBeforeRequest.addListener(
 
       const interceptUrl = browser.runtime.getURL("intercept/intercept.html");
       const target = encodeURIComponent(details.url);
-      return { redirectUrl: `${interceptUrl}?url=${target}` };
+      // Pass the pattern so the interstitial can read its settings without waiting on us
+      return {
+        redirectUrl: `${interceptUrl}?url=${target}&pattern=${encodeURIComponent(pattern)}`,
+      };
     });
   },
   { urls: ["<all_urls>"] },
