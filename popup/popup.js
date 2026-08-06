@@ -1,39 +1,6 @@
 const siteStatus = document.getElementById("site-status");
 const siteTime = document.getElementById("site-time");
-const notifyCountdown = document.getElementById("notify-countdown");
 const settingsBtn = document.getElementById("settings-btn");
-
-let countdownTimer = null;
-
-function startCountdown(tabId, intervalMinutes, lastFireMs) {
-  if (countdownTimer) clearInterval(countdownTimer);
-  const intervalMs = intervalMinutes * 60 * 1000;
-
-  function render() {
-    const remaining = Math.max(0, intervalMs - (Date.now() - lastFireMs));
-    const totalSec = Math.ceil(remaining / 1000);
-    const m = Math.floor(totalSec / 60);
-    const s = totalSec % 60;
-    notifyCountdown.textContent = `Next reminder in ${m}:${String(s).padStart(2, "0")}`;
-    notifyCountdown.hidden = false;
-  }
-
-  render();
-  countdownTimer = setInterval(() => {
-    const remaining = Math.max(0, intervalMs - (Date.now() - lastFireMs));
-    if (remaining === 0) {
-      // Timer fired since popup opened; re-fetch updated lastFireMs
-      browser.runtime
-        .sendMessage({ type: "get-notify-timer", tabId })
-        .then((meta) => {
-          if (meta) {
-            lastFireMs = meta.lastFireMs;
-          }
-        });
-    }
-    render();
-  }, 1000);
-}
 
 function setStatusSpans(hostname, labelClass, labelText) {
   siteStatus.replaceChildren();
@@ -138,16 +105,6 @@ async function checkCurrentTab() {
   } else {
     siteTime.hidden = true;
   }
-  // Show countdown to next notification if a timer is active for this tab
-  browser.runtime
-    .sendMessage({ type: "get-notify-timer", tabId: tab.id })
-    .then((meta) => {
-      if (meta) {
-        startCountdown(tab.id, meta.intervalMinutes, meta.lastFireMs);
-      } else {
-        notifyCountdown.hidden = true;
-      }
-    });
 }
 
 settingsBtn.addEventListener("click", () => {

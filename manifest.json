@@ -19,14 +19,13 @@
     "tabs",
     "webRequest",
     "webRequestBlocking",
-    "webNavigation",
-    "notifications"
+    "webNavigation"
   ],
 
   "host_permissions": ["<all_urls>"],
 
   "background": {
-    "scripts": ["quotes.js", "background.js"]
+    "scripts": ["background.js"]
   },
 
   "action": {

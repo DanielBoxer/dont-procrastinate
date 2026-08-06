@@ -7,14 +7,11 @@ const activeBlockedTabs = new Map();
 // Tracks per-domain active state: pattern -> { refCount, startTime }
 const activeDomains = new Map();
 
-// Tracks periodic notification timers for active blocked domains: pattern -> intervalId
-const notifyTimers = new Map();
-
-// Tracks notify timer metadata for popup display: pattern -> { intervalMinutes, lastFireMs }
-const notifyTimerMeta = new Map();
-
 function todayKey() {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
 }
 
 async function getDailyUsage() {
@@ -57,54 +54,66 @@ async function recordOpen(pattern) {
   await saveDailyUsage(usage);
 }
 
-function patternToDisplayName(pattern) {
-  return pattern.replace(/^\*:\/\/\*\./, "").replace(/\/\?\*$|\/*\*$/, "");
+// Time accumulated since the domain's tabs were opened, not yet written to storage
+function liveMinutes(pattern) {
+  const domain = activeDomains.get(pattern);
+  return domain ? (Date.now() - domain.startTime) / 60000 : 0;
 }
 
-async function startNotifyTimer(pattern) {
-  // Only start a new timer if one isn't already running for this domain
-  if (notifyTimers.has(pattern)) return;
+const BADGE_REFRESH_MS = 1000;
+const SECONDS_FORMAT_LIMIT_MINUTES = 10;
 
-  const { notifyIntervalMinutes } = await browser.storage.local.get({
-    notifyIntervalMinutes: 0,
-  });
-  if (notifyIntervalMinutes <= 0) return;
+// First stage the elapsed time has reached wins, so keep these descending
+const BADGE_STAGES = [
+  { afterMinutes: 30, color: "#c50f1f" },
+  { afterMinutes: 10, color: "#f2c811" },
+  { afterMinutes: 0, color: "#4a4a4a" },
+];
 
-  const ms = notifyIntervalMinutes * 60 * 1000;
-  const meta = {
-    intervalMinutes: notifyIntervalMinutes,
-    lastFireMs: Date.now(),
-  };
-  notifyTimerMeta.set(pattern, meta);
-  const timerId = setInterval(async () => {
-    const domain = activeDomains.get(pattern);
-    if (!domain) {
-      clearInterval(timerId);
-      notifyTimers.delete(pattern);
-      notifyTimerMeta.delete(pattern);
-      return;
-    }
-    meta.lastFireMs = Date.now();
-    const heading = HEADINGS[Math.floor(Math.random() * HEADINGS.length)];
-    const usage = await getDailyUsage();
-    const site = getSiteUsage(usage, pattern);
-    const elapsed = (Date.now() - domain.startTime) / 60000;
-    const totalMin = Math.round(site.minutesUsed + elapsed);
-    const display = patternToDisplayName(pattern);
-    browser.notifications.create(`blocked-reminder-${pattern}`, {
-      type: "basic",
-      iconUrl: browser.runtime.getURL("icons/icon-sad.png"),
-      title: heading,
-      message: `${display}: ${totalMin} min today`,
+let badgeTimer = null;
+
+function formatBadge(minutes) {
+  if (minutes >= SECONDS_FORMAT_LIMIT_MINUTES) {
+    return String(Math.floor(minutes));
+  }
+  const totalSeconds = Math.floor(minutes * 60);
+  const seconds = totalSeconds % 60;
+  return `${Math.floor(totalSeconds / 60)}:${String(seconds).padStart(2, "0")}`;
+}
+
+function badgeColor(minutes) {
+  return BADGE_STAGES.find((stage) => minutes >= stage.afterMinutes).color;
+}
+
+async function refreshBadges() {
+  const usage = await getDailyUsage();
+  for (const [tabId, pattern] of activeBlockedTabs) {
+    const minutes =
+      getSiteUsage(usage, pattern).minutesUsed + liveMinutes(pattern);
+    browser.action.setBadgeText({ tabId, text: formatBadge(minutes) });
+    browser.action.setBadgeBackgroundColor({
+      tabId,
+      color: badgeColor(minutes),
     });
-  }, ms);
-  notifyTimers.set(pattern, timerId);
+  }
+}
+
+function syncBadgeTimer() {
+  const shouldRun = activeBlockedTabs.size > 0;
+  if (shouldRun && !badgeTimer) {
+    refreshBadges();
+    badgeTimer = setInterval(refreshBadges, BADGE_REFRESH_MS);
+  } else if (!shouldRun && badgeTimer) {
+    clearInterval(badgeTimer);
+    badgeTimer = null;
+  }
 }
 
 async function flushTabTime(tabId) {
   const pattern = activeBlockedTabs.get(tabId);
   if (pattern == null) return;
   activeBlockedTabs.delete(tabId);
+  syncBadgeTimer();
 
   const domain = activeDomains.get(pattern);
   if (!domain) return;
@@ -115,14 +124,8 @@ async function flushTabTime(tabId) {
     return;
   }
 
-  // Last tab for this domain closed, flush accumulated time and stop timer
+  // Last tab for this domain closed, flush accumulated time
   activeDomains.delete(pattern);
-
-  if (notifyTimers.has(pattern)) {
-    clearInterval(notifyTimers.get(pattern));
-    notifyTimers.delete(pattern);
-    notifyTimerMeta.delete(pattern);
-  }
 
   const elapsed = (Date.now() - domain.startTime) / 60000;
   const usage = await getDailyUsage();
@@ -190,8 +193,8 @@ browser.runtime.onMessage.addListener((message, sender) => {
             activeDomains.get(pattern).refCount++;
           } else {
             activeDomains.set(pattern, { refCount: 1, startTime: Date.now() });
-            startNotifyTimer(pattern);
           }
+          syncBadgeTimer();
         }
       });
       browser.tabs.update(tabId, { url: message.url });
@@ -208,21 +211,11 @@ browser.runtime.onMessage.addListener((message, sender) => {
       const usage = await getDailyUsage();
       const allSettings = await getSiteSettings();
       const site = getSiteUsage(usage, pattern);
-      // Include any in-progress (unflushed) time from active domain tracking
-      const domain = activeDomains.get(pattern);
-      const liveMinutes = domain ? (Date.now() - domain.startTime) / 60000 : 0;
       return {
-        usage: { ...site, minutesUsed: site.minutesUsed + liveMinutes },
+        usage: { ...site, minutesUsed: site.minutesUsed + liveMinutes(pattern) },
         settings: { ...DEFAULT_SITE_SETTINGS, ...allSettings[pattern] },
       };
     });
-  }
-
-  if (message.type === "get-notify-timer") {
-    // Look up the domain-level timer via the tab's pattern
-    const pattern = activeBlockedTabs.get(message.tabId);
-    const meta = pattern ? notifyTimerMeta.get(pattern) : null;
-    return Promise.resolve(meta ? { ...meta } : null);
   }
 
   if (message.type === "get-live-minutes") {
@@ -232,9 +225,8 @@ browser.runtime.onMessage.addListener((message, sender) => {
         result[pattern] = site.minutesUsed;
       }
       // Add in-progress time for any currently active domains
-      for (const [pattern, domain] of activeDomains) {
-        result[pattern] =
-          (result[pattern] || 0) + (Date.now() - domain.startTime) / 60000;
+      for (const pattern of activeDomains.keys()) {
+        result[pattern] = (result[pattern] || 0) + liveMinutes(pattern);
       }
       return result;
     });
