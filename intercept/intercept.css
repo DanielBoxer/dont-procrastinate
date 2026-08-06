@@ -29,16 +29,6 @@ h1 {
   color: var(--text-heading);
 }
 
-.visit-count {
-  font-size: 0.85rem;
-  color: var(--danger);
-  margin-bottom: 0.5rem;
-}
-
-.visit-count:empty {
-  display: none;
-}
-
 .usage-info {
   font-size: 0.85rem;
   color: var(--accent);

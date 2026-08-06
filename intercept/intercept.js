@@ -3,7 +3,6 @@ const targetUrl = params.get("url");
 const blockedPattern = params.get("pattern");
 
 const heading = document.getElementById("heading");
-const visitCount = document.getElementById("visit-count");
 const usageInfo = document.getElementById("usage-info");
 const intentSection = document.getElementById("intent-section");
 const intentPrompt = document.getElementById("intent-prompt");
@@ -57,7 +56,7 @@ async function init() {
 
   const { rotatingHeadlines, requireIntent, activities, siteSettings } =
     await browser.storage.local.get({
-      rotatingHeadlines: true,
+      rotatingHeadlines: false,
       requireIntent: true,
       activities: [],
       siteSettings: {},
@@ -93,11 +92,6 @@ async function init() {
     yesBtn.style.display = "none";
     intentSection.style.display = "none";
     return;
-  }
-
-  // Show visit count
-  if (usage.opens > 0) {
-    visitCount.textContent = `You've visited this ${usage.opens} time${usage.opens !== 1 ? "s" : ""} today.`;
   }
 
   const opensExceeded =

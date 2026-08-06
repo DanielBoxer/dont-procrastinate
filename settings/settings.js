@@ -411,7 +411,7 @@ async function loadWaitTime() {
 
 async function loadInterceptSettings() {
   const { rotatingHeadlines, requireIntent } = await browser.storage.local.get({
-    rotatingHeadlines: true,
+    rotatingHeadlines: false,
     requireIntent: true,
   });
   rotatingHeadlinesCheck.checked = rotatingHeadlines;
