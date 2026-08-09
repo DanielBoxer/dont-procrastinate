@@ -135,12 +135,6 @@ async function flushTabTime(tabId) {
   await saveDailyUsage(usage);
 }
 
-browser.runtime.onInstalled.addListener(async (details) => {
-  if (details.reason === "install") {
-    await browser.storage.local.set({ blockedSites: [] });
-  }
-});
-
 async function getBlockedPatterns() {
   const { blockedSites } = await browser.storage.local.get({
     blockedSites: [],
